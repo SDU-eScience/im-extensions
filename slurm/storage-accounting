@@ -26,4 +26,4 @@ info = run_command(['/usr/lpp/mmfs/bin/mmlsquota', '-j', path, '-Y', 'ess1'])
 info = info.stdout.split('\n')
 info = info[1].split(':')
 usage = int(info[10])
-print(f'{{"bytesUsed":{usag}}}')e
+print(f'{{"bytesUsed":{usage}}}')
