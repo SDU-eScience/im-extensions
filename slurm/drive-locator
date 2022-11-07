@@ -1,16 +1,8 @@
 #!/usr/bin/env python3
-import re
 import sys
-import subprocess
-import urllib3
 import json
 
 sys.path.append('/opt/ucloud/extensions/lib')
-urllib3.disable_warnings()
-
-from ipa import *
-from ess import *
-from slurm import *
 from common import *
 
 # =====================================================================================================================

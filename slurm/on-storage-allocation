@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-import re
 import sys
-import subprocess
 import urllib3
 import json
 

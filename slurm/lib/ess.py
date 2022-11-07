@@ -122,8 +122,8 @@ ess_fileset_quota()
 function arguments
   [m] filesystem   : filesystem name
   [m] fileset      : fileset name
-  [m] path         : junction for the fileset
-  [m] parent       : parent inode space
+  [m] space        : quota for disk space
+  [m] files        : quota for number of files
 return values
   none
 """
@@ -152,5 +152,64 @@ def ess_fileset_quota(args):
 
     if error or result.get('status') != 'COMPLETED':
         RuntimeError('failed to set quota on fileset')
+
+    return rets
+
+"""
+ess_fileset_unlink()
+  unlink an existing fileset
+function arguments
+  [m] filesystem   : filesystem name
+  [m] fileset      : fileset name
+return values
+  none
+"""
+def ess_fileset_unlink(args):
+    rets = {}
+    fileset = args.get('fileset')
+    filesystem = args.get('filesystem')
+
+    if not filesystem:
+        raise ValueError('missing variable: filesystem')
+
+    if not fileset:
+        raise ValueError('missing variable: fileset')
+
+    result = ess.fileset_unlink(filesystem, fileset)
+    error = result.get('error')
+    job = result.get('job')
+
+    if error or result.get('status') != 'COMPLETED':
+        RuntimeError('failed to unlink fileset')
+
+    return rets
+
+
+"""
+ess_fileset_delete()
+  delete an existing fileset
+function arguments
+  [m] filesystem   : filesystem name
+  [m] fileset      : fileset name
+return values
+  none
+"""
+def ess_fileset_delete(args):
+    rets = {}
+    fileset = args.get('fileset')
+    filesystem = args.get('filesystem')
+
+    if not filesystem:
+        raise ValueError('missing variable: filesystem')
+
+    if not fileset:
+        raise ValueError('missing variable: fileset')
+
+    result = ess.fileset_delete(filesystem, fileset)
+    error = result.get('error')
+    job = result.get('job')
+
+    if error or result.get('status') != 'COMPLETED':
+        RuntimeError('failed to delete fileset')
 
     return rets
