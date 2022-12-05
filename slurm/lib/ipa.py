@@ -58,16 +58,18 @@ def ipa_handle_error(result, type):
 ipa_user_create()
   create a new ipa user
 function arguments
-  [m] user         : username
-  [m] firstname    : first name
-  [m] lastname     : last name
-  [m] email        : email address
+  [m] user           : username
+  [m] firstname      : first name
+  [m] lastname       : last name
+  [m] email          : email address
+  [o] employeenumber : employee number
 return values
-  uid              : user id
-  gid              : group id
+  uid                : user id
+  gid                : group id
 """
 def ipa_user_create(args):
     rets = {}
+    opts = {}
     user = args.get('user')
     email = args.get('email')
 
@@ -89,7 +91,10 @@ def ipa_user_create(args):
     if not args.get('lastname'):
         raise ValueError('missing variable: lastname')
 
-    opts = { 'mail' : email }
+    if args.get('employeenumber'):
+        opts['employeenumber'] = args['employeenumber']
+
+    opts['mail'] = email
     result = ipa.user_add(user, args['firstname'], args['lastname'], opts)
     ipa_handle_error(result, 'user')
     result = result.get('result')
@@ -111,6 +116,7 @@ return values
   sshkeys          : list of public ssh keys
   uid              : user id
   gid              : group id
+  employeenumber   : employee number
 """
 def ipa_user_query(args):
     rets = {}
@@ -128,6 +134,7 @@ def ipa_user_query(args):
     rets['email'] = result['mail'][0]
     rets['uid'] = int(result['uidnumber'][0])
     rets['gid'] = int(result['gidnumber'][0])
+    rets['employeenumber'] = result['employeeNumber'][0]
 
     count = result.get('sshpubkeyfp', [])
     count = len(count)
@@ -147,14 +154,52 @@ def ipa_user_query(args):
 
 
 """
+ipa_user_find()
+  search for an ipa user
+function arguments
+  [o] user           : username
+  [o] email          : email address
+  [o] employeenumber : employee number
+return values
+  users              : list of matching users
+"""
+def ipa_user_find(args):
+    rets = {}
+    opts = {}
+
+    if args.get('user'):
+        opts['uid'] = args['user']
+
+    if args.get('email'):
+        opts['mail'] = args['email']
+
+    if args.get('employeenumber'):
+        opts['employeenumber'] = args['employeenumber']
+
+    if not opts:
+        raise ValueError('no search options specified')
+
+    result = ipa.user_find(opts)
+    ipa_handle_error(result, 'user')
+    result = result.get('result')
+
+    rets['users'] = []
+    for user in result:
+        rets['users'].append(user['uid'][0])
+
+    return rets
+
+
+"""
 ipa_user_modify()
   modify an existing ipa user
 function arguments
-  [m] user         : username
-  [o] firstname    : first name
-  [o] lastname     : last name
-  [o] email        : email address
-  [o] sshpubkey    : list of public ssh keys
+  [m] user           : username
+  [o] firstname      : first name
+  [o] lastname       : last name
+  [o] email          : email address
+  [o] sshpubkey      : list of public ssh keys
+  [o] employeenumber : employee number
 return values
   none
 """
@@ -172,6 +217,9 @@ def ipa_user_modify(args):
 
     if args.get('lastname'):
         opts['sn'] = args['lastname']
+
+    if args.get('employeenumber'):
+        opts['employeenumber'] = args['employeenumber']
 
     if email and not validate_mail(email):
         raise ValueError('invalid variable: email')
@@ -240,6 +288,39 @@ def ipa_group_query(args):
     rets['description'] = description
     rets['gid'] = int(result['gidnumber'][0])
     rets['users'] = ipa_extract_users(result)
+    return rets
+
+
+"""
+ipa_group_find()
+  search for an ipa group
+function arguments
+  [o] group          : group name
+  [o] gid            : the group id
+return values
+  groups             : list of matching groups
+"""
+def ipa_group_find(args):
+    rets = {}
+    opts = {}
+
+    if args.get('group'):
+        opts['cn'] = args['group']
+
+    if args.get('gid'):
+        opts['gidnumber'] = args['gid']
+
+    if not opts:
+        raise ValueError('no search options specified')
+
+    result = ipa.group_find(opts)
+    ipa_handle_error(result, 'group')
+    result = result.get('result')
+
+    rets['groups'] = []
+    for group in result:
+        rets['groups'].append(group['cn'][0])
+
     return rets
 
 

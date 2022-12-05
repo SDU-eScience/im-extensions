@@ -9,16 +9,17 @@ from common import *
 # Loading request
 # =====================================================================================================================
 
-request = json.loads(open(sys.argv[1]).read())
-owner = request
-owner_type = owner['type']
+with open(sys.argv[1]) as fp:
+    request = json.load(fp)
+
+owner_type = request['type']
 
 # =====================================================================================================================
 # Mapping
 # =====================================================================================================================
 
 if owner_type == 'user':
-    username = get_username_by_uid(owner['uid'])
+    username = get_username_by_uid(request['uid'])
     response = {
         'title' : 'Home',
         'path' : f'/home/{username}'
@@ -26,7 +27,7 @@ if owner_type == 'user':
     print(json.dumps([response]))
 
 elif owner_type == 'project':
-    group_name = get_group_by_gid(owner['gid'])
+    group_name = get_group_by_gid(request['gid'])
     response = {
         'title' : 'Work',
         'path' : f'/work/{group_name}'

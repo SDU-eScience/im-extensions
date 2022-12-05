@@ -15,9 +15,11 @@ from common import *
 # Authenticate with services
 # =====================================================================================================================
 
-ess_config = json.loads(open('/etc/ucloud/ess.json').read())
-ess_auth_ok = ess_authenticate(ess_config['username'], ess_config['password'], ess_config['server'])
-if not ess_auth_ok:
+with open('/etc/ucloud/ess.json') as fp:
+    config = json.load(fp)
+
+auth_ok = ess_authenticate(config['username'], config['password'], config['server'])
+if not auth_ok:
     print('Could not authenticate with ESS')
     exit(1)
 
@@ -25,7 +27,9 @@ if not ess_auth_ok:
 # Loading request
 # =====================================================================================================================
 
-request = json.loads(open(sys.argv[1]).read())
+with open(sys.argv[1]) as fp:
+    request = json.load(fp)
+
 balance = request['balance']
 owner = request['owner']
 owner_type = owner['type']

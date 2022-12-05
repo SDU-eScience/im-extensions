@@ -9,7 +9,9 @@ from common import *
 # Loading request
 # =====================================================================================================================
 
-request = json.loads(open(sys.argv[1]).read())
+with open(sys.argv[1]) as fp:
+    request = json.load(fp)
+
 owner = request['owner']
 owner_type = owner['type']
 

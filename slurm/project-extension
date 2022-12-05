@@ -26,15 +26,34 @@ ESS_PATH_PREFIX = '/gpfs/ess1/work/'
 # Loading request
 # =====================================================================================================================
 
-request = json.loads(open(sys.argv[1]).read())
+with open(sys.argv[1]) as fp:
+    request = json.load(fp)
+
 request_type = request['type']
 
 # =====================================================================================================================
 # Utilities
 # =====================================================================================================================
 
+def make_group_name_unique(u):
+    un = u
+    result = ipa_group_find({'group' : un})
+    groups = result['groups']
+    ext = 0
+
+    while len(groups) == 1:
+        ext = ext + 1
+        un = f'{u}{ext:02}'
+        result = ipa_group_find({'group' : un})
+        groups = result['groups']
+
+    return un
+
 def generate_name(ucloud_title, allocated_gid):
-    return re.sub(r'[^a-z0-9]', '_', ucloud_title.lower()) + '_' + str(allocated_gid)
+    name = ucloud_title.replace(' ', '_')
+    name = re.sub('\W+', '', name).lower()
+    name = name[0:28].strip('_')
+    return name
 
 def create_group(gid, name):
     try:
@@ -73,15 +92,19 @@ def remove_user_from_group(uid, gid):
 # Authenticate with services
 # =====================================================================================================================
 
-ess_config = json.loads(open('/etc/ucloud/ess.json').read())
-ess_auth_ok = ess_authenticate(ess_config['username'], ess_config['password'], ess_config['server'])
-if not ess_auth_ok:
+with open('/etc/ucloud/ess.json') as fp:
+    config = json.load(fp)
+
+auth_ok = ess_authenticate(config['username'], config['password'], config['server'])
+if not auth_ok:
     print('Could not authenticate with ESS')
     exit(1)
 
-ipa_config = json.loads(open('/etc/ucloud/ipa.json').read())
-ipa_auth_ok = ipa_authenticate(ipa_config['username'], ipa_config['password'], ipa_config['server'], ipa_config['cert'])
-if not ipa_auth_ok:
+with open('/etc/ucloud/ipa.json') as fp:
+    config = json.load(fp)
+
+auth_ok = ipa_authenticate(config['username'], config['password'], config['server'], config['cert'])
+if not auth_ok:
     print('Could not authenticate with IPA')
     exit(1)
 
@@ -94,6 +117,7 @@ if request_type == 'project_renamed':
     if request['oldProject'] is None:
         ucloud_project_id = request['newProject']['project']['id']
         name = generate_name(request['newTitle'], gid)
+        name = make_group_name_unique(name)
         create_group(gid, name)
 
         args = {

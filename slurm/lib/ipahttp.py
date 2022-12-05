@@ -72,6 +72,12 @@ class ipahttp:
         result = self.request('user_show', name, params)
         return result
 
+    def user_find(self, opts):
+        params = { 'all' : True, 'raw' : True }
+        params.update(opts)
+        result = self.request('user_find', '', params)
+        return result
+
     def user_add(self, name, first, last, opts={}):
         common = f'{first} {last}'
         params = { 'all' : True, 'raw' : True, 'givenname' : first, 'sn' : last, 'cn' : common }
@@ -93,6 +99,12 @@ class ipahttp:
     def group_show(self, name):
         params = { 'all' : True, 'raw' : True }
         result = self.request('group_show', name, params)
+        return result
+
+    def group_find(self, opts):
+        params = { 'all' : True, 'raw' : True }
+        params.update(opts)
+        result = self.request('group_find', '', params)
         return result
 
     def group_add(self, name, gid=None, description=''):

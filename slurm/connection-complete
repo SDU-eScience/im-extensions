@@ -3,6 +3,7 @@ import sys
 import os
 import urllib3
 import json
+from unidecode import unidecode
 
 sys.path.append('/opt/ucloud/extensions/lib')
 urllib3.disable_warnings()
@@ -26,56 +27,90 @@ ESS_PATH_PREFIX = '/gpfs/ess1/home/'
 # Utilities
 # =====================================================================================================================
 
-def parse_ucloud_username(ucloud_identity):
-    names = []
+def parse_ucloud_username(u):
+    u = unidecode(u)
+    a = u.split('#')
+
+    u = a[0]
+    id = ''
+    if len(a) == 2:
+        id = a[1]
+    if u.isupper():
+        u = u.lower()
+
     builder = ''
-    for c in ucloud_identity:
-        if c.isupper() and builder:
+    names = []
+    dash = False
+    for c in u:
+        if c.isupper() and builder and not dash:
             names.append(builder)
             builder = c
-        elif c == '#':
-            break
+            dash = False
+        elif c == '-' or c == '\'':
+            dash = True
+            builder += c
         else:
             builder += c
+            dash = False
+    names.append(builder)
 
-    if builder:
-        names.append(builder)
+    if len(names) == 1:
+        u = names[0]
+        first = names[0].capitalize()
+        last = 'Unknown'
+    else:
+        first = ' '.join(names[:-1])
+        last = names[-1]
+        u = names[0][0] + names[-1]
 
-    first = ' '.join(names[:-1]) if len(names) > 1 else names[0] if len(names) == 1 else 'Unknown'
-    last = names[-1] if len(names) > 1 else 'Unknown'
-    return { 'first' : first, 'last' : last }
+    u = re.sub('\W+', '', u).lower()
+    u = u[0:28]
 
+    return { 'first' : first, 'last' : last, 'user' : u }
 
-# =====================================================================================================================
-# Prepare information about desired user
-# =====================================================================================================================
+def find_ucloud_username(u):
+    result = ipa_user_find({'employeenumber' : u})
+    users = result['users']
 
-request = json.loads(open(sys.argv[1]).read())
+    if len(users) == 0:
+        return False
 
-# NOTE(Dan): Works for either OpenIdConnect or UCloud plugin. For this reason, we also don't rely on any special
-# information we might have gotten from OIDC, but we try to use it if available.
-ucloud_identity = request.get('ucloudIdentity') or request.get('username')
+    if len(users) > 1:
+        raise Exception('result must be unique, but multiple values returned')
 
-ucloud_names = parse_ucloud_username(ucloud_identity)
+    return users[0]
 
-username = ucloud_identity.replace('#', '').replace('@', '').replace('.', '').lower()
-first = request.get('givenName') or ucloud_names['first']
-last = request.get('familyName') or ucloud_names['last']
-mail = request.get('email') or 'unknown@localhost.local' # TODO(Dan): UCloud connection plugin will never return this info
+def make_username_unique(u):
+    un = u
+    result = ipa_user_find({'user' : un})
+    users = result['users']
+    ext = 0
+
+    while len(users) == 1:
+        ext = ext + 1
+        un = f'{u}{ext:02}'
+        result = ipa_user_find({'user' : un})
+        users = result['users']
+
+    return un
 
 # =====================================================================================================================
 # Authenticate with services
 # =====================================================================================================================
 
-ess_config = json.loads(open('/etc/ucloud/ess.json').read())
-ess_auth_ok = ess_authenticate(ess_config['username'], ess_config['password'], ess_config['server'])
-if not ess_auth_ok:
+with open('/etc/ucloud/ess.json') as fp:
+    config = json.load(fp)
+
+auth_ok = ess_authenticate(config['username'], config['password'], config['server'])
+if not auth_ok:
     print('Could not authenticate with ESS')
     exit(1)
 
-ipa_config = json.loads(open('/etc/ucloud/ipa.json').read())
-ipa_auth_ok = ipa_authenticate(ipa_config['username'], ipa_config['password'], ipa_config['server'], ipa_config['cert'])
-if not ipa_auth_ok:
+with open('/etc/ucloud/ipa.json') as fp:
+    config = json.load(fp)
+
+auth_ok = ipa_authenticate(config['username'], config['password'], config['server'], config['cert'])
+if not auth_ok:
     print('Could not authenticate with IPA')
     exit(1)
 
@@ -83,31 +118,51 @@ if not ipa_auth_ok:
 # Query system for existing user
 # =====================================================================================================================
 
-# TODO(Dan): For roboustness sake, we need to be able to recover from a partially initialized user
-args = { 'user' : username }
-try:
-    user_info = ipa_user_query(args)
+with open(sys.argv[1]) as fp:
+    request = json.load(fp)
 
-    response = {}
-    response['uid'] = user_info.get('uid')
-    response['gid'] = user_info.get('gid')
+ucloud_identity = request.get('ucloudIdentity') or request.get('username')
+username = find_ucloud_username(ucloud_identity)
+
+if username:
+    result = ipa_user_query({ 'user' : username })
+    response = { 'uid' : result.get('uid'), 'gid' : result.get('gid') }
     print(json.dumps(response))
     exit(0)
-except:
-    # User does not exist, that is okay
-    # TODO(Dan): This could also be any other generic error. We should make sure.
-    pass
+
+# =====================================================================================================================
+# Prepare information about desired user
+# =====================================================================================================================
+
+result = parse_ucloud_username(ucloud_identity)
+username = result.get('user')
+username = make_username_unique(username)
+
+first = request.get('givenName') or result.get('first')
+last = request.get('familyName') or result.get('last')
+mail = request.get('email') or 'unknown@localhost.local' # TODO(Dan): UCloud connection plugin will never return this info
 
 # =====================================================================================================================
 # Creation of: IPA user
 # =====================================================================================================================
 
-account = username
+args = {
+    'user' : username,
+    'firstname' : first,
+    'lastname' : last,
+    'email' : mail,
+    'employeenumber' : ucloud_identity
+}
+result = ipa_user_create(args)
+response = {
+    'uid' : result.get('uid'),
+    'gid' : result.get('gid')
+}
 
-args = { 'user' : username, 'firstname' : first, 'lastname' : last, 'email' : mail }
-user_info = ipa_user_create(args)
-
-args = { 'group' : 'ucloud_users', 'user' : username }
+args = {
+    'group' : 'ucloud_users',
+    'user' : username
+}
 ipa_group_add_user(args)
 
 # =====================================================================================================================
@@ -115,14 +170,17 @@ ipa_group_add_user(args)
 # =====================================================================================================================
 
 args = {
-    'account' : account,
+    'account' : username,
     'credits' : FREE_CORE_HOURS * 60,
     'description' : f'Personal workspace of {username}',
     'organization' : 'ucloud'
 }
 slurm_account_create(args)
 
-args = { 'account' : account, 'user' : username }
+args = {
+    'account' : username,
+    'user' : username
+}
 slurm_user_create(args)
 
 # =====================================================================================================================
@@ -151,7 +209,4 @@ ess_fileset_quota(args)
 # Return information about created resources
 # =====================================================================================================================
 
-response = {}
-response['uid'] = user_info.get('uid')
-response['gid'] = user_info.get('gid')
 print(json.dumps(response))
