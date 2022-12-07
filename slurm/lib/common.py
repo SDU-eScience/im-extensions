@@ -36,3 +36,6 @@ def get_gid_by_group(name):
     if result.returncode != 0:
         return None
     return int(result.stdout.split(':')[2])
+
+def clear_sssd_cache():
+    run_command(['sudo', '/sbin/sss_cache', '-E'])

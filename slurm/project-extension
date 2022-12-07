@@ -62,25 +62,28 @@ def create_group(gid, name, id):
         ipa_group_create(args)
     except NameError:
         pass
-    run_command(['sudo', '/sbin/sss_cache', '-E'])
-
-def delete_group(gid):
-    group_name = get_group_by_gid(gid)
-    if group_name is not None:
-        ipa_group_delete({ 'group' : group_name })
+    clear_sssd_cache()
 
 def add_user_to_group(uid, gid):
-    group_name = get_group_by_gid(gid)
-    username = get_username_by_uid(uid)
-    if group_name is not None and username is not None:
-        ipa_group_add_user({ 'user' : username, 'group' : group_name })
-    run_command(['sudo', '/sbin/sss_cache', '-E'])
+    group = get_group_by_gid(gid)
+    if group is None:
+        return
+    user = get_username_by_uid(uid)
+    if user is None:
+        return
+    ipa_group_add_user({ 'user' : user, 'group' : group })
+    slurm_account_add_user({ 'account' : group, 'user' : user })
+    clear_sssd_cache()
 
 def remove_user_from_group(uid, gid):
-    group_name = get_group_by_gid(gid)
-    username = get_username_by_uid(uid)
-    if group_name is not None and username is not None:
-        ipa_group_remove_user({ 'user' : username, 'group' : group_name })
+    group = get_group_by_gid(gid)
+    if group is None:
+        return
+    user = get_username_by_uid(uid)
+    if user is None:
+        return
+    ipa_group_remove_user({ 'user' : user, 'group' : group })
+    slurm_account_remove_user({ 'account' : group, 'user' : user })
 
 # =====================================================================================================================
 # Authenticate with services
@@ -153,8 +156,6 @@ elif request_type == 'members_added_to_project':
         if uid is None:
             continue
         add_user_to_group(uid, gid)
-        account_name = get_group_by_gid(gid)
-        slurm_account_add_user({ 'account' : account_name, 'user' : get_username_by_uid(uid) })
 
 elif request_type == 'members_removed_from_project':
     gid = request['newProject']['localId']
@@ -163,7 +164,5 @@ elif request_type == 'members_removed_from_project':
         if uid is None:
             continue
         remove_user_from_group(uid, gid)
-        account_name = get_group_by_gid(gid)
-        slurm_account_remove_user({ 'account' : account_name, 'user' : get_username_by_uid(uid) })
 
 print('{}')
