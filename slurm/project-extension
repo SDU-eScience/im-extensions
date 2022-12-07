@@ -52,22 +52,16 @@ def make_group_name_unique(u):
 def generate_name(ucloud_title, allocated_gid):
     name = ucloud_title.replace(' ', '_')
     name = re.sub('\W+', '', name).lower()
+    name = re.sub('_+', '_', name)
     name = name[0:28].strip('_')
     return name
 
-def create_group(gid, name):
+def create_group(gid, name, id):
     try:
-        args = { 'group' : name, 'gid' : gid }
+        args = { 'group' : name, 'gid' : gid, 'description' : f'UCloud Project: {id}' }
         ipa_group_create(args)
     except NameError:
         pass
-
-    try:
-        args = { 'parent' : 'hippo_users', 'group' : name }
-        ipa_group_add_group(args)
-    except NameError:
-        pass
-
     run_command(['sudo', '/sbin/sss_cache', '-E'])
 
 def delete_group(gid):
@@ -118,7 +112,7 @@ if request_type == 'project_renamed':
         ucloud_project_id = request['newProject']['project']['id']
         name = generate_name(request['newTitle'], gid)
         name = make_group_name_unique(name)
-        create_group(gid, name)
+        create_group(gid, name, ucloud_project_id)
 
         args = {
             'account' : name,
@@ -156,18 +150,20 @@ elif request_type == 'members_added_to_project':
     gid = request['newProject']['localId']
     for member in request['newMembers']:
         uid = member['uid']
-        if uid is None: continue
+        if uid is None:
+            continue
         add_user_to_group(uid, gid)
-        account_name = generate_name(request['newProject']['project']['specification']['title'], gid)
+        account_name = get_group_by_gid(gid)
         slurm_account_add_user({ 'account' : account_name, 'user' : get_username_by_uid(uid) })
 
 elif request_type == 'members_removed_from_project':
     gid = request['newProject']['localId']
     for member in request['removedMembers']:
         uid = member['uid']
-        if uid is None: continue
+        if uid is None:
+            continue
         remove_user_from_group(uid, gid)
-        account_name = generate_name(request['newProject']['project']['specification']['title'], gid)
+        account_name = get_group_by_gid(gid)
         slurm_account_remove_user({ 'account' : account_name, 'user' : get_username_by_uid(uid) })
 
 print('{}')
