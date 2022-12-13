@@ -113,7 +113,7 @@ if request_type == 'project_renamed':
         args = {
             'group' : name,
             'gid' : gid,
-            'description' : f'UCloud Project: {id}'
+            'description' : f'UCloud Project: {ucloud_project_id}'
         }
         ipa_group_create(args)
         clear_sssd_cache()

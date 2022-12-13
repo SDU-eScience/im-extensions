@@ -61,7 +61,7 @@ function arguments
   [m] user           : username
   [m] firstname      : first name
   [m] lastname       : last name
-  [m] email          : email address
+  [o] email          : email address
   [o] employeenumber : employee number
 return values
   uid                : user id
@@ -79,10 +79,7 @@ def ipa_user_create(args):
     if not validate_name(user):
         raise ValueError('invalid variable: user')
 
-    if not email:
-        raise ValueError('missing variable: email')
-
-    if not validate_mail(email):
+    if email and not validate_mail(email):
         raise ValueError('invalid variable: email')
 
     if not args.get('firstname'):
@@ -94,7 +91,9 @@ def ipa_user_create(args):
     if args.get('employeenumber'):
         opts['employeenumber'] = args['employeenumber']
 
-    opts['mail'] = email
+    if email:
+        opts['mail'] = email
+
     result = ipa.user_add(user, args['firstname'], args['lastname'], opts)
     ipa_handle_error(result, 'user')
     result = result.get('result')
