@@ -130,10 +130,16 @@ def ipa_user_query(args):
 
     rets['firstname'] = result['givenname'][0]
     rets['lastname'] = result['sn'][0]
-    rets['email'] = result['mail'][0]
     rets['uid'] = int(result['uidnumber'][0])
     rets['gid'] = int(result['gidnumber'][0])
-    rets['employeenumber'] = result['employeeNumber'][0]
+    rets['email'] = ''
+    rets['employeenumber'] = ''
+
+    if result.get('mail'):
+        rets['email'] = result['mail'][0]
+
+    if result.get('employeeNumber'):
+        rets['employeenumber'] = result['employeeNumber'][0]
 
     count = result.get('sshpubkeyfp', [])
     count = len(count)

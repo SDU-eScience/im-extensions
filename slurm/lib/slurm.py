@@ -497,7 +497,7 @@ def slurm_user_modify(args):
         cmd.append(qos)
 
     if account:
-        cmd.append('Account=%d' % account)
+        cmd.append('DefaultAccount=%s' % account)
 
     if privilege:
         cmd.append('AdminLevel=%s' % privilege)
