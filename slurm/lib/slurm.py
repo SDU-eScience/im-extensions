@@ -216,7 +216,7 @@ def slurm_account_modify(args):
         try:
             credits = int(credits)
         except:
-            raise ValueError('missing variable: credits')
+            raise ValueError('invalid variable: credits')
         cmd.append('Fairshare=%d' % int(credits/24/60))
         cmd.append('GrpTRESMins=billing=%d' % credits)
 
@@ -262,18 +262,17 @@ def slurm_account_query(args):
     if not slurm_account_exists(account, info):
         raise NameError('slurm account does not exist')
 
-    cmd = ['sshare', '-lhPA', account, '-o', 'user,rawshares,rawusage,grptresmins']
+    cmd = ['sshare', '-lhPA', account, '-o', 'user,rawshares,rawusage,grptresmins,grptresraw']
     line = slurm_run_command(cmd)
     line = line.stdout.split('|')
 
-    try:
-        value = re.search('billing=(\d+)', line[3]).group(1)
-        rets['credits'] = int(value)
-    except:
-        pass
+    value = re.search('billing=(\d+)', line[3]).group(1)
+    rets['credits'] = int(value)
+
+    value = re.search('billing=(\d+)', line[4]).group(1)
+    rets['usage'] = int(value)
 
     rets['fairshare'] = int(line[1])
-    rets['usage'] = int(line[2])//60
     rets['description'] = info['description']
     rets['organization'] = info['organization']
     rets['parent'] = info['parent']
