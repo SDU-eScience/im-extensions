@@ -13,19 +13,19 @@ from ess import *
 from slurm import *
 from common import *
 
-# =====================================================================================================================
+# ==============================================================================
 # Configuration
-# =====================================================================================================================
+# ==============================================================================
 
 FREE_CORE_HOURS = 10
-FREE_QUOTA_GIGS = 10
+FREE_QUOTA_GIGS = 100
 
 ESS_FILE_SYSTEM = 'ess1'
 ESS_PATH_PREFIX = '/gpfs/ess1/home/'
 
-# =====================================================================================================================
+# ==============================================================================
 # Utilities
-# =====================================================================================================================
+# ==============================================================================
 
 def parse_ucloud_username(u):
     u = unidecode(u)
@@ -94,29 +94,79 @@ def make_username_unique(u):
 
     return un
 
-# =====================================================================================================================
+def create_ipa_user(username, first, last, mail, ucloud_identity):
+    args = {
+        'user' : username,
+        'firstname' : first,
+        'lastname' : last,
+        'email' : mail,
+        'employeenumber' : ucloud_identity
+    }
+    result = ipa_user_create(args)
+    args = {
+        'group' : 'ucloud_users',
+        'user' : username
+    }
+    ipa_group_add_user(args)
+    args = {
+        'uid' : result.get('uid'),
+        'gid' : result.get('gid')
+    }
+    return args
+
+def create_slurm_user(username):
+    args = {
+        'account' : username,
+        'credits' : FREE_CORE_HOURS * 60,
+        'description' : f'Personal workspace of {username}',
+        'organization' : 'ucloud'
+    }
+    slurm_account_create(args)
+    args = {
+        'account' : username,
+        'user' : username
+    }
+    slurm_user_create(args)
+
+def create_home_fileset(username):
+    args = {
+        'filesystem' : ESS_FILE_SYSTEM,
+        'fileset' : f'home-{username}',
+        'parent' : 'home',
+        'path' : f'{ESS_PATH_PREFIX}{username}',
+        'owner' : f'{username}:{username}',
+        'permissions' : '700'
+    }
+    ess_fileset_create(args)
+    args = {
+        'filesystem' : ESS_FILE_SYSTEM,
+        'fileset' : f'home-{username}',
+        'space' : f'{FREE_QUOTA_GIGS}G',
+        'files' : '0'
+    }
+    ess_fileset_quota(args)
+
+# ==============================================================================
 # Authenticate with services
-# =====================================================================================================================
+# ==============================================================================
 
 with open('/etc/ucloud/ess.json') as fp:
     config = json.load(fp)
 
 auth_ok = ess_authenticate(config['username'], config['password'], config['server'])
 if not auth_ok:
-    print('Could not authenticate with ESS')
-    exit(1)
+    sys.exit('Could not authenticate with ESS')
 
 with open('/etc/ucloud/ipa.json') as fp:
     config = json.load(fp)
 
 auth_ok = ipa_authenticate(config['username'], config['password'], config['server'], config['cert'])
 if not auth_ok:
-    print('Could not authenticate with IPA')
-    exit(1)
+    sys.exit('Could not authenticate with IPA')
 
-# =====================================================================================================================
+# ==============================================================================
 # Query system for existing user
-# =====================================================================================================================
+# ==============================================================================
 
 with open(sys.argv[1]) as fp:
     request = json.load(fp)
@@ -127,86 +177,57 @@ username = find_ucloud_username(ucloud_identity)
 if username:
     result = ipa_user_query({ 'user' : username })
     response = { 'uid' : result.get('uid'), 'gid' : result.get('gid') }
-    print(json.dumps(response))
-    exit(0)
+    exists = True
+else:
+    exists = False
 
-# =====================================================================================================================
-# Prepare information about desired user
-# =====================================================================================================================
+# ==============================================================================
+# Prepare information about new user
+# ==============================================================================
 
-result = parse_ucloud_username(ucloud_identity)
-username = result.get('user')
-username = make_username_unique(username)
+if not exists:
+    result = parse_ucloud_username(ucloud_identity)
+    username = result.get('user')
+    username = make_username_unique(username)
 
-first = request.get('givenName') or result.get('first')
-last = request.get('familyName') or result.get('last')
-mail = request.get('email') or 'unknown@localhost.local' # TODO(Dan): UCloud connection plugin will never return this info
+    first = request.get('givenName') or result.get('first')
+    last = request.get('familyName') or result.get('last')
+    mail = request.get('email') # TODO: UCloud connection plugin will never return this info
 
-# =====================================================================================================================
+# ==============================================================================
 # Creation of: IPA user
-# =====================================================================================================================
+# ==============================================================================
 
-args = {
-    'user' : username,
-    'firstname' : first,
-    'lastname' : last,
-    'email' : mail,
-    'employeenumber' : ucloud_identity
-}
-result = ipa_user_create(args)
-response = {
-    'uid' : result.get('uid'),
-    'gid' : result.get('gid')
-}
+if not exists:
+    response = create_ipa_user(username, first, last, mail, ucloud_identity)
 
-args = {
-    'group' : 'ucloud_users',
-    'user' : username
-}
-ipa_group_add_user(args)
-
-# =====================================================================================================================
+# ==============================================================================
 # Creation of: Slurm account
-# =====================================================================================================================
+# ==============================================================================
 
-args = {
-    'account' : username,
-    'credits' : FREE_CORE_HOURS * 60,
-    'description' : f'Personal workspace of {username}',
-    'organization' : 'ucloud'
-}
-slurm_account_create(args)
+if not exists:
+    create = True
+else:
+    create = not slurm_user_exists(username)
 
-args = {
-    'account' : username,
-    'user' : username
-}
-slurm_user_create(args)
+if create:
+    create_slurm_user(username)
 
-# =====================================================================================================================
+# ==============================================================================
 # Creation of: Home fileset
-# =====================================================================================================================
+# ==============================================================================
 
-args = {
-    'filesystem' : ESS_FILE_SYSTEM,
-    'fileset' : f'home-{username}',
-    'parent' : 'home',
-    'path' : f'{ESS_PATH_PREFIX}{username}',
-    'owner' : f'{username}:{username}',
-    'permissions' : '700'
-}
-ess_fileset_create(args)
+if not exists:
+    create = True
+else:
+    path = f'{ESS_PATH_PREFIX}{username}'
+    create = not os.path.isdir(path)
 
-args = {
-    'filesystem' : ESS_FILE_SYSTEM,
-    'fileset' : f'home-{username}',
-    'space' : f'{FREE_QUOTA_GIGS}G',
-    'files' : '0'
-}
-ess_fileset_quota(args)
+if create:
+    create_home_fileset(username)
 
-# =====================================================================================================================
+# ==============================================================================
 # Return information about created resources
-# =====================================================================================================================
+# ==============================================================================
 
 print(json.dumps(response))

@@ -11,9 +11,9 @@ from ess import *
 from slurm import *
 from common import *
 
-# =====================================================================================================================
+# ==============================================================================
 # Loading request
-# =====================================================================================================================
+# ==============================================================================
 
 with open(sys.argv[1]) as fp:
     request = json.load(fp)
@@ -22,9 +22,9 @@ balance = request['balance']
 owner = request['owner']
 owner_type = owner['type']
 
-# =====================================================================================================================
+# ==============================================================================
 # Allocating resources
-# =====================================================================================================================
+# ==============================================================================
 
 slurm_account = None
 
@@ -33,21 +33,15 @@ if owner_type == 'user':
 elif owner_type == 'project':
     slurm_account = get_group_by_gid(owner['gid'])
 else:
-    print(f'Unknown owner_type {owner_type}')
-    exit(1)
+    sys.exit(f'Unknown owner type: {owner_type}')
 
 if slurm_account is None:
-    print('Could not resolve slurm account')
-    exit(1)
+    sys.exit('Could not resolve slurm account')
 
 args = {
     'account' : slurm_account,
     'credits' : balance
 }
 
-try:
-    slurm_account_modify(args)
-except:
-    print(f'Failed to modify account with {args}')
-
+slurm_account_modify(args)
 print('{ "type": "ucloud_managed" }')

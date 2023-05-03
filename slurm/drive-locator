@@ -5,35 +5,40 @@ import json
 sys.path.append('/opt/ucloud/extensions/lib')
 from common import *
 
-# =====================================================================================================================
+# ==============================================================================
 # Loading request
-# =====================================================================================================================
+# ==============================================================================
 
 with open(sys.argv[1]) as fp:
     request = json.load(fp)
 
 owner_type = request['type']
 
-# =====================================================================================================================
+# ==============================================================================
 # Mapping
-# =====================================================================================================================
+# ==============================================================================
 
 if owner_type == 'user':
-    username = get_username_by_uid(request['uid'])
+    uid = request['uid']
+    name = get_username_by_uid(uid)
+    if not name:
+        sys.exit(f'User not found: {uid}')
     response = {
         'title' : 'Home',
-        'path' : f'/home/{username}'
+        'path' : f'/home/{name}'
     }
     print(json.dumps([response]))
 
 elif owner_type == 'project':
-    group_name = get_group_by_gid(request['gid'])
+    gid = request['gid']
+    name = get_group_by_gid(gid)
+    if not name:
+        sys.exit(f'Group not found: {gid}')
     response = {
         'title' : 'Work',
-        'path' : f'/work/{group_name}'
+        'path' : f'/work/{name}'
     }
     print(json.dumps([response]))
 
 else:
-    print(f'Unknown owner type {owner_type}')
-    exit(1)
+    sys.exit(f'Unknown owner type: {owner_type}')
